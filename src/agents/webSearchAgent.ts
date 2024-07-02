@@ -21,76 +21,77 @@ import computeSimilarity from '../utils/computeSimilarity';
 import logger from '../utils/logger';
 
 const basicSearchRetrieverPrompt = `
-You will be given a conversation below and a follow up question. You need to rephrase the follow-up question if needed so it is a standalone question that can be used by the LLM to search the web for information.
-If it is a writing task or a simple hi, hello rather than a question, you need to return \`not_needed\` as the response.
+Dir wird unten ein Gespräch und eine Folgefrage gegeben. Du musst die Folgefrage gegebenenfalls umformulieren, damit sie eine eigenständige Frage ist, die von der LLM verwendet werden kann, um im Web nach Informationen zu suchen.
+    Wenn es sich um eine Schreibaufgabe oder ein einfaches Hallo handelt und nicht um eine Frage, musst du \`not_needed\` als Antwort zurückgeben.
 
-Example:
-1. Follow up question: What is the capital of France?
-Rephrased: Capital of france
+Beispiel:
+1. Folgefrage: Was ist die Hauptstadt von Frankreich?
+Umformuliert: Hauptstadt von Frankreich
 
-2. Follow up question: What is the population of New York City?
-Rephrased: Population of New York City
+2. Folgefrage: Wie viele Einwohner hat New York City?
+Umformuliert: Einwohnerzahl von New York City
 
-3. Follow up question: What is Docker?
-Rephrased: What is Docker
+3. Folgefrage: Was ist Docker?
+Umformuliert: Was ist Docker
 
-Conversation:
+Gespräch:
 {chat_history}
 
-Follow up question: {query}
-Rephrased question:
+Folgefrage: {query}
+Umformulierte Frage:
 `;
 
 const basicWebSearchResponsePrompt = `
-    You are Perplexica, an AI model who is expert at searching the web and answering user's queries.
+    Du bist Perplexica, ein KI-Modell, das Experte im Web-Suchen und Beantworten von Benutzeranfragen ist.
 
-    Generate a response that is informative and relevant to the user's query based on provided context (the context consits of search results containg a brief description of the content of that page).
-    You must use this context to answer the user's query in the best way possible. Use an unbaised and journalistic tone in your response. Do not repeat the text.
-    You must not tell the user to open any link or visit any website to get the answer. You must provide the answer in the response itself. If the user asks for links you can provide them.
-    Your responses should be medium to long in length be informative and relevant to the user's query. You can use markdowns to format your response. You should use bullet points to list the information. Make sure the answer is not short and is informative.
-    You have to cite the answer using [number] notation. You must cite the sentences with their relevent context number. You must cite each and every part of the answer so the user can know where the information is coming from.
-    Place these citations at the end of that particular sentence. You can cite the same sentence multiple times if it is relevant to the user's query like [number1][number2].
-    However you do not need to cite it using the same number. You can use different numbers to cite the same sentence multiple times. The number refers to the number of the search result (passed in the context) used to generate that part of the answer.
+    Erzeuge eine Antwort, die informativ und relevant für die Frage des Benutzers ist, basierend auf dem bereitgestellten Kontext (der Kontext besteht aus Suchergebnissen mit einer kurzen Beschreibung des Inhalts der Seite).
+    Du musst diesen Kontext verwenden, um die Frage des Benutzers bestmöglich zu beantworten. Verwende einen unparteiischen und journalistischen Ton in deiner Antwort. Wiederhole den Text nicht.
+    Du darfst dem Benutzer nicht sagen, dass er einen Link öffnen oder eine Website besuchen soll, um die Antwort zu erhalten. Du musst die Antwort selbst in der Antwort geben. Wenn der Benutzer nach Links fragt, kannst du sie bereitstellen.
+    Deine Antworten sollten mittel bis lang sein, informativ und relevant für die Frage des Benutzers. Du kannst Markdown verwenden, um deine Antwort zu formatieren. Du solltest Aufzählungspunkte verwenden, um die Informationen aufzulisten. Stelle sicher, dass die Antwort nicht kurz ist und informativ ist.
+    Du musst die Antwort mit der [Nummer] Notation zitieren. Du musst die Sätze mit ihrem relevanten Kontext zitieren, damit der Benutzer weiß, woher die Informationen stammen.
+    Setze diese Zitate am Ende des jeweiligen Satzes. Du kannst denselben Satz mehrfach zitieren, wenn es relevant für die Frage des Benutzers ist, wie [Nummer1][Nummer2].
+    Du musst es jedoch nicht mit derselben Nummer zitieren. Du kannst verschiedene Nummern verwenden, um denselben Satz mehrfach zu zitieren. Die Nummer bezieht sich auf die Nummer des Suchergebnisses (im Kontext angegeben), das verwendet wurde, um diesen Teil der Antwort zu erstellen.
 
-    Aything inside the following \`context\` HTML block provided below is for your knowledge returned by the search engine and is not shared by the user. You have to answer question on the basis of it and cite the relevant information from it but you do not have to 
-    talk about the context in your response. 
+    Alles innerhalb des folgenden \`context\` HTML-Blocks ist für dein Wissen, das von der Suchmaschine zurückgegeben wurde, und wird nicht mit dem Benutzer geteilt. Du musst die Frage auf dieser Basis beantworten und die relevanten Informationen daraus zitieren, aber du musst nicht über den Kontext in deiner Antwort sprechen. 
 
     <context>
     {context}
     </context>
 
-    If you think there's nothing relevant in the search results, you can say that 'Hmm, sorry I could not find any relevant information on this topic. Would you like me to search again or ask something else?'.
-    Anything between the \`context\` is retrieved from a search engine and is not a part of the conversation with the user. Today's date is ${new Date().toISOString()}
+    Wenn du denkst, dass es keine relevanten Informationen in den Suchergebnissen gibt, kannst du sagen: 'Hmm, sorry, ich konnte keine relevanten Informationen zu diesem Thema finden. Möchtest du, dass ich erneut suche oder etwas anderes frage?'.
+    Alles zwischen dem \`context\` ist von einer Suchmaschine abgerufen und nicht Teil des Gesprächs mit dem Benutzer. Das heutige Datum ist ${new Date().toISOString()}
+    
+    Antworte bitte auf Deutsch.
 `;
 
 const strParser = new StringOutputParser();
 
 const handleStream = async (
-  stream: AsyncGenerator<StreamEvent, any, unknown>,
-  emitter: eventEmitter,
+    stream: AsyncGenerator<StreamEvent, any, unknown>,
+    emitter: eventEmitter,
 ) => {
   for await (const event of stream) {
     if (
-      event.event === 'on_chain_end' &&
-      event.name === 'FinalSourceRetriever'
+        event.event === 'on_chain_end' &&
+        event.name === 'FinalSourceRetriever'
     ) {
       emitter.emit(
-        'data',
-        JSON.stringify({ type: 'sources', data: event.data.output }),
+          'data',
+          JSON.stringify({ type: 'sources', data: event.data.output }),
       );
     }
     if (
-      event.event === 'on_chain_stream' &&
-      event.name === 'FinalResponseGenerator'
+        event.event === 'on_chain_stream' &&
+        event.name === 'FinalResponseGenerator'
     ) {
       emitter.emit(
-        'data',
-        JSON.stringify({ type: 'response', data: event.data.chunk }),
+          'data',
+          JSON.stringify({ type: 'response', data: event.data.chunk }),
       );
     }
     if (
-      event.event === 'on_chain_end' &&
-      event.name === 'FinalResponseGenerator'
+        event.event === 'on_chain_end' &&
+        event.name === 'FinalResponseGenerator'
     ) {
       emitter.emit('end');
     }
@@ -113,19 +114,19 @@ const createBasicWebSearchRetrieverChain = (llm: BaseChatModel) => {
       }
 
       const res = await searchSearxng(input, {
-        language: 'en',
+        language: 'de',
       });
 
       const documents = res.results.map(
-        (result) =>
-          new Document({
-            pageContent: result.content,
-            metadata: {
-              title: result.title,
-              url: result.url,
-              ...(result.img_src && { img_src: result.img_src }),
-            },
-          }),
+          (result) =>
+              new Document({
+                pageContent: result.content,
+                metadata: {
+                  title: result.title,
+                  url: result.url,
+                  ...(result.img_src && { img_src: result.img_src }),
+                },
+              }),
       );
 
       return { query: input, docs: documents };
@@ -134,21 +135,21 @@ const createBasicWebSearchRetrieverChain = (llm: BaseChatModel) => {
 };
 
 const createBasicWebSearchAnsweringChain = (
-  llm: BaseChatModel,
-  embeddings: Embeddings,
+    llm: BaseChatModel,
+    embeddings: Embeddings,
 ) => {
   const basicWebSearchRetrieverChain = createBasicWebSearchRetrieverChain(llm);
 
   const processDocs = async (docs: Document[]) => {
     return docs
-      .map((_, index) => `${index + 1}. ${docs[index].pageContent}`)
-      .join('\n');
+        .map((_, index) => `${index + 1}. ${docs[index].pageContent}`)
+        .join('\n');
   };
 
   const rerankDocs = async ({
-    query,
-    docs,
-  }: {
+                              query,
+                              docs,
+                            }: {
     query: string;
     docs: Document[];
   }) => {
@@ -157,8 +158,8 @@ const createBasicWebSearchAnsweringChain = (
     }
 
     const docsWithContent = docs.filter(
-      (doc) => doc.pageContent && doc.pageContent.length > 0,
-    );
+        (doc) => doc.pageContent && doc.pageContent.length > 0,
+  );
 
     const [docEmbeddings, queryEmbedding] = await Promise.all([
       embeddings.embedDocuments(docsWithContent.map((doc) => doc.pageContent)),
@@ -175,10 +176,10 @@ const createBasicWebSearchAnsweringChain = (
     });
 
     const sortedDocs = similarity
-      .sort((a, b) => b.similarity - a.similarity)
-      .filter((sim) => sim.similarity > 0.5)
-      .slice(0, 15)
-      .map((sim) => docsWithContent[sim.index]);
+        .sort((a, b) => b.similarity - a.similarity)
+        .filter((sim) => sim.similarity > 0.5)
+        .slice(0, 15)
+        .map((sim) => docsWithContent[sim.index]);
 
     return sortedDocs;
   };
@@ -193,11 +194,11 @@ const createBasicWebSearchAnsweringChain = (
           chat_history: formatChatHistoryAsString(input.chat_history),
         }),
         basicWebSearchRetrieverChain
-          .pipe(rerankDocs)
-          .withConfig({
-            runName: 'FinalSourceRetriever',
-          })
-          .pipe(processDocs),
+            .pipe(rerankDocs)
+            .withConfig({
+              runName: 'FinalSourceRetriever',
+            })
+            .pipe(processDocs),
       ]),
     }),
     ChatPromptTemplate.fromMessages([
@@ -213,46 +214,46 @@ const createBasicWebSearchAnsweringChain = (
 };
 
 const basicWebSearch = (
-  query: string,
-  history: BaseMessage[],
-  llm: BaseChatModel,
-  embeddings: Embeddings,
+    query: string,
+    history: BaseMessage[],
+    llm: BaseChatModel,
+    embeddings: Embeddings,
 ) => {
   const emitter = new eventEmitter();
 
   try {
     const basicWebSearchAnsweringChain = createBasicWebSearchAnsweringChain(
-      llm,
-      embeddings,
+        llm,
+        embeddings,
     );
 
     const stream = basicWebSearchAnsweringChain.streamEvents(
-      {
-        chat_history: history,
-        query: query,
-      },
-      {
-        version: 'v1',
-      },
+        {
+          chat_history: history,
+          query: query,
+        },
+        {
+          version: 'v1',
+        },
     );
 
     handleStream(stream, emitter);
   } catch (err) {
     emitter.emit(
-      'error',
-      JSON.stringify({ data: 'An error has occurred please try again later' }),
+        'error',
+        JSON.stringify({ data: 'Ein Fehler ist aufgetreten, bitte versuche es später noch einmal' }),
     );
-    logger.error(`Error in websearch: ${err}`);
+    logger.error(`Fehler bei der Websuche: ${err}`);
   }
 
   return emitter;
 };
 
 const handleWebSearch = (
-  message: string,
-  history: BaseMessage[],
-  llm: BaseChatModel,
-  embeddings: Embeddings,
+    message: string,
+    history: BaseMessage[],
+    llm: BaseChatModel,
+    embeddings: Embeddings,
 ) => {
   const emitter = basicWebSearch(message, history, llm, embeddings);
   return emitter;

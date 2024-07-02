@@ -21,76 +21,77 @@ import computeSimilarity from '../utils/computeSimilarity';
 import logger from '../utils/logger';
 
 const basicAcademicSearchRetrieverPrompt = `
-You will be given a conversation below and a follow up question. You need to rephrase the follow-up question if needed so it is a standalone question that can be used by the LLM to search the web for information.
-If it is a writing task or a simple hi, hello rather than a question, you need to return \`not_needed\` as the response.
+Du bekommst unten ein Gespräch und eine Folgefrage. Du musst die Folgefrage umformulieren, falls nötig, damit sie eine eigenständige Frage ist, die die LLM zum Durchsuchen des Webs nach Informationen verwenden kann.
+Wenn es sich um eine Schreibaufgabe oder ein einfaches Hallo handelt, musst du \`not_needed\` als Antwort zurückgeben.
 
-Example:
-1. Follow up question: How does stable diffusion work?
-Rephrased: Stable diffusion working
+Beispiel:
+1. Folgefrage: Wie funktioniert stabile Diffusion?
+Umformuliert: Stabile Diffusion Funktionsweise
 
-2. Follow up question: What is linear algebra?
-Rephrased: Linear algebra
+2. Folgefrage: Was ist lineare Algebra?
+Umformuliert: Lineare Algebra
 
-3. Follow up question: What is the third law of thermodynamics?
-Rephrased: Third law of thermodynamics
+3. Folgefrage: Was ist das dritte Gesetz der Thermodynamik?
+Umformuliert: Drittes Gesetz der Thermodynamik
 
-Conversation:
+Gespräch:
 {chat_history}
 
-Follow up question: {query}
-Rephrased question:
+Folgefrage: {query}
+Umformulierte Frage:
 `;
 
 const basicAcademicSearchResponsePrompt = `
-    You are Perplexica, an AI model who is expert at searching the web and answering user's queries. You are set on focus mode 'Academic', this means you will be searching for academic papers and articles on the web.
+    Du bist Perplexica, ein KI-Modell, das darauf spezialisiert ist, im Web zu suchen und die Fragen der Benutzer zu beantworten. Du bist im Modus 'Akademisch', was bedeutet, dass du nach wissenschaftlichen Arbeiten und Artikeln im Web suchst.
 
-    Generate a response that is informative and relevant to the user's query based on provided context (the context consits of search results containg a brief description of the content of that page).
-    You must use this context to answer the user's query in the best way possible. Use an unbaised and journalistic tone in your response. Do not repeat the text.
-    You must not tell the user to open any link or visit any website to get the answer. You must provide the answer in the response itself. If the user asks for links you can provide them.
-    Your responses should be medium to long in length be informative and relevant to the user's query. You can use markdowns to format your response. You should use bullet points to list the information. Make sure the answer is not short and is informative.
-    You have to cite the answer using [number] notation. You must cite the sentences with their relevent context number. You must cite each and every part of the answer so the user can know where the information is coming from.
-    Place these citations at the end of that particular sentence. You can cite the same sentence multiple times if it is relevant to the user's query like [number1][number2].
-    However you do not need to cite it using the same number. You can use different numbers to cite the same sentence multiple times. The number refers to the number of the search result (passed in the context) used to generate that part of the answer.
+    Erstelle eine Antwort, die informativ und relevant zur Frage des Benutzers ist, basierend auf dem bereitgestellten Kontext (der Kontext besteht aus Suchergebnissen mit einer kurzen Beschreibung des Seiteninhalts).
+    Du musst diesen Kontext verwenden, um die Frage des Benutzers bestmöglich zu beantworten. Verwende einen unparteiischen und journalistischen Ton in deiner Antwort. Wiederhole den Text nicht.
+    Du darfst dem Benutzer nicht sagen, dass er einen Link öffnen oder eine Website besuchen soll, um die Antwort zu erhalten. Du musst die Antwort in der Antwort selbst liefern. Wenn der Benutzer nach Links fragt, kannst du sie bereitstellen.
+    Deine Antworten sollten mittel bis lang sein, informativ und relevant zur Frage des Benutzers. Du kannst Markdowns verwenden, um deine Antwort zu formatieren. Du solltest Aufzählungspunkte verwenden, um die Informationen aufzulisten. Stelle sicher, dass die Antwort nicht kurz ist und informativ.
+    Du musst die Antwort mit [Nummer] zitieren. Du musst die Sätze mit ihrer relevanten Kontextnummer zitieren. Du musst jeden Teil der Antwort zitieren, damit der Benutzer weiß, woher die Informationen stammen.
+    Platziere diese Zitate am Ende des jeweiligen Satzes. Du kannst denselben Satz mehrfach zitieren, wenn es relevant zur Frage des Benutzers ist, wie [Nummer1][Nummer2].
+    Du musst ihn jedoch nicht mit derselben Nummer zitieren. Du kannst verschiedene Nummern verwenden, um denselben Satz mehrfach zu zitieren. Die Nummer bezieht sich auf die Nummer des Suchergebnisses (im Kontext übergeben), das verwendet wurde, um diesen Teil der Antwort zu erstellen.
 
-    Aything inside the following \`context\` HTML block provided below is for your knowledge returned by the search engine and is not shared by the user. You have to answer question on the basis of it and cite the relevant information from it but you do not have to 
-    talk about the context in your response. 
+    Alles innerhalb des folgenden \`context\` HTML-Blocks, der unten bereitgestellt wird, ist für dein Wissen und wurde von der Suchmaschine zurückgegeben und ist kein Teil des Gesprächs mit dem Benutzer. Du musst die Frage basierend darauf beantworten und die relevanten Informationen daraus zitieren, aber du musst nicht über den Kontext in deiner Antwort sprechen.
 
     <context>
     {context}
     </context>
 
-    If you think there's nothing relevant in the search results, you can say that 'Hmm, sorry I could not find any relevant information on this topic. Would you like me to search again or ask something else?'.
-    Anything between the \`context\` is retrieved from a search engine and is not a part of the conversation with the user. Today's date is ${new Date().toISOString()}
+    Wenn du denkst, dass in den Suchergebnissen nichts Relevantes enthalten ist, kannst du sagen: 'Hmm, sorry, ich konnte keine relevanten Informationen zu diesem Thema finden. Möchtest du, dass ich erneut suche oder etwas anderes frage?'.
+    Alles zwischen dem \`context\` wurde von einer Suchmaschine abgerufen und ist kein Teil des Gesprächs mit dem Benutzer. Das heutige Datum ist ${new Date().toISOString()}
+    
+    Antworte bitte auf Deutsch.
 `;
 
 const strParser = new StringOutputParser();
 
 const handleStream = async (
-  stream: AsyncGenerator<StreamEvent, any, unknown>,
-  emitter: eventEmitter,
+    stream: AsyncGenerator<StreamEvent, any, unknown>,
+    emitter: eventEmitter,
 ) => {
   for await (const event of stream) {
     if (
-      event.event === 'on_chain_end' &&
-      event.name === 'FinalSourceRetriever'
+        event.event === 'on_chain_end' &&
+        event.name === 'FinalSourceRetriever'
     ) {
       emitter.emit(
-        'data',
-        JSON.stringify({ type: 'sources', data: event.data.output }),
+          'data',
+          JSON.stringify({ type: 'sources', data: event.data.output }),
       );
     }
     if (
-      event.event === 'on_chain_stream' &&
-      event.name === 'FinalResponseGenerator'
+        event.event === 'on_chain_stream' &&
+        event.name === 'FinalResponseGenerator'
     ) {
       emitter.emit(
-        'data',
-        JSON.stringify({ type: 'response', data: event.data.chunk }),
+          'data',
+          JSON.stringify({ type: 'response', data: event.data.chunk }),
       );
     }
     if (
-      event.event === 'on_chain_end' &&
-      event.name === 'FinalResponseGenerator'
+        event.event === 'on_chain_end' &&
+        event.name === 'FinalResponseGenerator'
     ) {
       emitter.emit('end');
     }
@@ -113,7 +114,7 @@ const createBasicAcademicSearchRetrieverChain = (llm: BaseChatModel) => {
       }
 
       const res = await searchSearxng(input, {
-        language: 'en',
+        language: 'de',
         engines: [
           'arxiv',
           'google scholar',
@@ -123,15 +124,15 @@ const createBasicAcademicSearchRetrieverChain = (llm: BaseChatModel) => {
       });
 
       const documents = res.results.map(
-        (result) =>
-          new Document({
-            pageContent: result.content,
-            metadata: {
-              title: result.title,
-              url: result.url,
-              ...(result.img_src && { img_src: result.img_src }),
-            },
-          }),
+          (result) =>
+              new Document({
+                pageContent: result.content,
+                metadata: {
+                  title: result.title,
+                  url: result.url,
+                  ...(result.img_src && { img_src: result.img_src }),
+                },
+              }),
       );
 
       return { query: input, docs: documents };
@@ -140,22 +141,22 @@ const createBasicAcademicSearchRetrieverChain = (llm: BaseChatModel) => {
 };
 
 const createBasicAcademicSearchAnsweringChain = (
-  llm: BaseChatModel,
-  embeddings: Embeddings,
+    llm: BaseChatModel,
+    embeddings: Embeddings,
 ) => {
   const basicAcademicSearchRetrieverChain =
-    createBasicAcademicSearchRetrieverChain(llm);
+      createBasicAcademicSearchRetrieverChain(llm);
 
   const processDocs = async (docs: Document[]) => {
     return docs
-      .map((_, index) => `${index + 1}. ${docs[index].pageContent}`)
-      .join('\n');
+        .map((_, index) => `${index + 1}. ${docs[index].pageContent}`)
+        .join('\n');
   };
 
   const rerankDocs = async ({
-    query,
-    docs,
-  }: {
+                              query,
+                              docs,
+                            }: {
     query: string;
     docs: Document[];
   }) => {
@@ -164,7 +165,7 @@ const createBasicAcademicSearchAnsweringChain = (
     }
 
     const docsWithContent = docs.filter(
-      (doc) => doc.pageContent && doc.pageContent.length > 0,
+        (doc) => doc.pageContent && doc.pageContent.length > 0,
     );
 
     const [docEmbeddings, queryEmbedding] = await Promise.all([
@@ -182,9 +183,9 @@ const createBasicAcademicSearchAnsweringChain = (
     });
 
     const sortedDocs = similarity
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, 15)
-      .map((sim) => docsWithContent[sim.index]);
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, 15)
+        .map((sim) => docsWithContent[sim.index]);
 
     return sortedDocs;
   };
@@ -199,11 +200,11 @@ const createBasicAcademicSearchAnsweringChain = (
           chat_history: formatChatHistoryAsString(input.chat_history),
         }),
         basicAcademicSearchRetrieverChain
-          .pipe(rerankDocs)
-          .withConfig({
-            runName: 'FinalSourceRetriever',
-          })
-          .pipe(processDocs),
+            .pipe(rerankDocs)
+            .withConfig({
+              runName: 'FinalSourceRetriever',
+            })
+            .pipe(processDocs),
       ]),
     }),
     ChatPromptTemplate.fromMessages([
@@ -219,44 +220,44 @@ const createBasicAcademicSearchAnsweringChain = (
 };
 
 const basicAcademicSearch = (
-  query: string,
-  history: BaseMessage[],
-  llm: BaseChatModel,
-  embeddings: Embeddings,
+    query: string,
+    history: BaseMessage[],
+    llm: BaseChatModel,
+    embeddings: Embeddings,
 ) => {
   const emitter = new eventEmitter();
 
   try {
     const basicAcademicSearchAnsweringChain =
-      createBasicAcademicSearchAnsweringChain(llm, embeddings);
+        createBasicAcademicSearchAnsweringChain(llm, embeddings);
 
     const stream = basicAcademicSearchAnsweringChain.streamEvents(
-      {
-        chat_history: history,
-        query: query,
-      },
-      {
-        version: 'v1',
-      },
+        {
+          chat_history: history,
+          query: query,
+        },
+        {
+          version: 'v1',
+        },
     );
 
     handleStream(stream, emitter);
   } catch (err) {
     emitter.emit(
-      'error',
-      JSON.stringify({ data: 'An error has occurred please try again later' }),
+        'error',
+        JSON.stringify({ data: 'Ein Fehler ist aufgetreten, bitte versuche es später erneut' }),
     );
-    logger.error(`Error in academic search: ${err}`);
+    logger.error(`Fehler bei der akademischen Suche: ${err}`);
   }
 
   return emitter;
 };
 
 const handleAcademicSearch = (
-  message: string,
-  history: BaseMessage[],
-  llm: BaseChatModel,
-  embeddings: Embeddings,
+    message: string,
+    history: BaseMessage[],
+    llm: BaseChatModel,
+    embeddings: Embeddings,
 ) => {
   const emitter = basicAcademicSearch(message, history, llm, embeddings);
   return emitter;

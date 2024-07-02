@@ -20,76 +20,77 @@ import eventEmitter from 'events';
 import logger from '../utils/logger';
 
 const basicWolframAlphaSearchRetrieverPrompt = `
-You will be given a conversation below and a follow up question. You need to rephrase the follow-up question if needed so it is a standalone question that can be used by the LLM to search the web for information.
-If it is a writing task or a simple hi, hello rather than a question, you need to return \`not_needed\` as the response.
+Du bekommst unten ein Gespräch und eine Folgefrage. Du musst die Folgefrage gegebenenfalls umformulieren, damit sie eine eigenständige Frage wird, die vom LLM verwendet werden kann, um im Web nach Informationen zu suchen.
+Wenn es sich um eine Schreibaufgabe oder ein einfaches "Hallo" handelt, anstatt einer Frage, musst du \`not_needed\` als Antwort zurückgeben.
 
-Example:
-1. Follow up question: What is the atomic radius of S?
-Rephrased: Atomic radius of S
+Beispiel:
 
-2. Follow up question: What is linear algebra?
-Rephrased: Linear algebra
+Folgefrage: Was ist der Atomradius von S?
+Umformuliert: Atomradius von S
 
-3. Follow up question: What is the third law of thermodynamics?
-Rephrased: Third law of thermodynamics
+Folgefrage: Was ist lineare Algebra?
+Umformuliert: Lineare Algebra
 
-Conversation:
+Folgefrage: Was ist das dritte Gesetz der Thermodynamik?
+Umformuliert: Drittes Gesetz der Thermodynamik
+
+Gespräch:
 {chat_history}
 
-Follow up question: {query}
-Rephrased question:
+Folgefrage: {query}
+Umformulierte Frage:
 `;
 
 const basicWolframAlphaSearchResponsePrompt = `
-    You are Perplexica, an AI model who is expert at searching the web and answering user's queries. You are set on focus mode 'Wolfram Alpha', this means you will be searching for information on the web using Wolfram Alpha. It is a computational knowledge engine that can answer factual queries and perform computations.
+    Du bist Perplexica, ein KI-Modell, das darauf spezialisiert ist, im Web zu suchen und Benutzeranfragen zu beantworten. Du bist auf den Fokusmodus 'Wolfram Alpha' eingestellt, was bedeutet, dass du im Web nach Informationen mit Wolfram Alpha suchst. Dies ist eine rechnergestützte Wissensmaschine, die faktische Anfragen beantworten und Berechnungen durchführen kann.
 
-    Generate a response that is informative and relevant to the user's query based on provided context (the context consits of search results containg a brief description of the content of that page).
-    You must use this context to answer the user's query in the best way possible. Use an unbaised and journalistic tone in your response. Do not repeat the text.
-    You must not tell the user to open any link or visit any website to get the answer. You must provide the answer in the response itself. If the user asks for links you can provide them.
-    Your responses should be medium to long in length be informative and relevant to the user's query. You can use markdowns to format your response. You should use bullet points to list the information. Make sure the answer is not short and is informative.
-    You have to cite the answer using [number] notation. You must cite the sentences with their relevent context number. You must cite each and every part of the answer so the user can know where the information is coming from.
-    Place these citations at the end of that particular sentence. You can cite the same sentence multiple times if it is relevant to the user's query like [number1][number2].
-    However you do not need to cite it using the same number. You can use different numbers to cite the same sentence multiple times. The number refers to the number of the search result (passed in the context) used to generate that part of the answer.
+    Erzeuge eine Antwort, die informativ und relevant für die Anfrage des Benutzers ist, basierend auf dem bereitgestellten Kontext (der Kontext enthält Suchergebnisse mit einer kurzen Beschreibung des Inhalts dieser Seite).
+    Du musst diesen Kontext verwenden, um die Anfrage des Benutzers bestmöglich zu beantworten. Verwende einen unvoreingenommenen und journalistischen Ton in deiner Antwort. Wiederhole den Text nicht.
+    Du darfst den Benutzer nicht auffordern, einen Link zu öffnen oder eine Website zu besuchen, um die Antwort zu erhalten. Du musst die Antwort selbst in der Antwort bereitstellen. Wenn der Benutzer nach Links fragt, kannst du sie bereitstellen.
+    Deine Antworten sollten mittel- bis langwierig sein, informativ und relevant für die Anfrage des Benutzers. Du kannst Markdown verwenden, um deine Antwort zu formatieren. Verwende Aufzählungszeichen, um die Informationen aufzulisten. Stelle sicher, dass die Antwort nicht kurz ist und informativ ist.
+    Du musst die Antwort unter Verwendung der [Nummer]-Notation zitieren. Du musst die Sätze mit ihrer relevanten Kontextnummer zitieren. Jeder Teil der Antwort muss zitiert werden, damit der Benutzer weiß, woher die Informationen stammen.
+    Platziere diese Zitate am Ende dieses speziellen Satzes. Du kannst denselben Satz mehrmals zitieren, wenn er für die Anfrage des Benutzers relevant ist, z.B. [Nummer1][Nummer2].
+    Du musst den Satz jedoch nicht immer mit derselben Nummer zitieren. Du kannst verschiedene Nummern verwenden, um denselben Satz mehrmals zu zitieren. Die Nummer bezieht sich auf die Nummer des Suchergebnisses (im Kontext übergeben), das verwendet wurde, um diesen Teil der Antwort zu generieren.
 
-    Aything inside the following \`context\` HTML block provided below is for your knowledge returned by Wolfram Alpha and is not shared by the user. You have to answer question on the basis of it and cite the relevant information from it but you do not have to 
-    talk about the context in your response. 
+    Alles innerhalb des folgenden HTML-Blocks \`context\`, der unten angegeben ist, stammt von Wolfram Alpha und wird dem Benutzer nicht mitgeteilt. Du musst Fragen auf der Grundlage davon beantworten und relevante Informationen daraus zitieren, aber du musst nicht über den Kontext in deiner Antwort sprechen.
 
     <context>
     {context}
     </context>
 
-    If you think there's nothing relevant in the search results, you can say that 'Hmm, sorry I could not find any relevant information on this topic. Would you like me to search again or ask something else?'.
-    Anything between the \`context\` is retrieved from Wolfram Alpha and is not a part of the conversation with the user. Today's date is ${new Date().toISOString()}
+    Wenn du denkst, dass in den Suchergebnissen nichts Relevantes gefunden wurde, kannst du sagen: 'Hmm, tut mir leid, ich konnte keine relevanten Informationen zu diesem Thema finden. Möchten Sie, dass ich noch einmal suche oder etwas anderes frage?'. Alles zwischen den \`context\` wird von Wolfram Alpha abgerufen und ist kein Teil des Gesprächs mit dem Benutzer. Das heutige Datum ist ${new Date().toISOString()}
+    
+    Antworte bitte auf Deutsch.
 `;
 
 const strParser = new StringOutputParser();
 
 const handleStream = async (
-  stream: AsyncGenerator<StreamEvent, any, unknown>,
-  emitter: eventEmitter,
+    stream: AsyncGenerator<StreamEvent, any, unknown>,
+    emitter: eventEmitter,
 ) => {
   for await (const event of stream) {
     if (
-      event.event === 'on_chain_end' &&
-      event.name === 'FinalSourceRetriever'
+        event.event === 'on_chain_end' &&
+        event.name === 'FinalSourceRetriever'
     ) {
       emitter.emit(
-        'data',
-        JSON.stringify({ type: 'sources', data: event.data.output }),
+          'data',
+          JSON.stringify({ type: 'sources', data: event.data.output }),
       );
     }
     if (
-      event.event === 'on_chain_stream' &&
-      event.name === 'FinalResponseGenerator'
+        event.event === 'on_chain_stream' &&
+        event.name === 'FinalResponseGenerator'
     ) {
       emitter.emit(
-        'data',
-        JSON.stringify({ type: 'response', data: event.data.chunk }),
+          'data',
+          JSON.stringify({ type: 'response', data: event.data.chunk }),
       );
     }
     if (
-      event.event === 'on_chain_end' &&
-      event.name === 'FinalResponseGenerator'
+        event.event === 'on_chain_end' &&
+        event.name === 'FinalResponseGenerator'
     ) {
       emitter.emit('end');
     }
@@ -112,20 +113,20 @@ const createBasicWolframAlphaSearchRetrieverChain = (llm: BaseChatModel) => {
       }
 
       const res = await searchSearxng(input, {
-        language: 'en',
+        language: 'de',
         engines: ['wolframalpha'],
       });
 
       const documents = res.results.map(
-        (result) =>
-          new Document({
-            pageContent: result.content,
-            metadata: {
-              title: result.title,
-              url: result.url,
-              ...(result.img_src && { img_src: result.img_src }),
-            },
-          }),
+          (result) =>
+              new Document({
+                pageContent: result.content,
+                metadata: {
+                  title: result.title,
+                  url: result.url,
+                  ...(result.img_src && { img_src: result.img_src }),
+                },
+              }),
       );
 
       return { query: input, docs: documents };
@@ -135,12 +136,12 @@ const createBasicWolframAlphaSearchRetrieverChain = (llm: BaseChatModel) => {
 
 const createBasicWolframAlphaSearchAnsweringChain = (llm: BaseChatModel) => {
   const basicWolframAlphaSearchRetrieverChain =
-    createBasicWolframAlphaSearchRetrieverChain(llm);
+      createBasicWolframAlphaSearchRetrieverChain(llm);
 
   const processDocs = (docs: Document[]) => {
     return docs
-      .map((_, index) => `${index + 1}. ${docs[index].pageContent}`)
-      .join('\n');
+        .map((_, index) => `${index + 1}. ${docs[index].pageContent}`)
+        .join('\n');
   };
 
   return RunnableSequence.from([
@@ -153,13 +154,13 @@ const createBasicWolframAlphaSearchAnsweringChain = (llm: BaseChatModel) => {
           chat_history: formatChatHistoryAsString(input.chat_history),
         }),
         basicWolframAlphaSearchRetrieverChain
-          .pipe(({ query, docs }) => {
-            return docs;
-          })
-          .withConfig({
-            runName: 'FinalSourceRetriever',
-          })
-          .pipe(processDocs),
+            .pipe(({ query, docs }) => {
+              return docs;
+            })
+            .withConfig({
+              runName: 'FinalSourceRetriever',
+            })
+            .pipe(processDocs),
       ]),
     }),
     ChatPromptTemplate.fromMessages([
@@ -175,42 +176,42 @@ const createBasicWolframAlphaSearchAnsweringChain = (llm: BaseChatModel) => {
 };
 
 const basicWolframAlphaSearch = (
-  query: string,
-  history: BaseMessage[],
-  llm: BaseChatModel,
+    query: string,
+    history: BaseMessage[],
+    llm: BaseChatModel,
 ) => {
   const emitter = new eventEmitter();
 
   try {
     const basicWolframAlphaSearchAnsweringChain =
-      createBasicWolframAlphaSearchAnsweringChain(llm);
+        createBasicWolframAlphaSearchAnsweringChain(llm);
     const stream = basicWolframAlphaSearchAnsweringChain.streamEvents(
-      {
-        chat_history: history,
-        query: query,
-      },
-      {
-        version: 'v1',
-      },
+        {
+          chat_history: history,
+          query: query,
+        },
+        {
+          version: 'v1',
+        },
     );
 
     handleStream(stream, emitter);
   } catch (err) {
     emitter.emit(
-      'error',
-      JSON.stringify({ data: 'An error has occurred please try again later' }),
+        'error',
+        JSON.stringify({ data: 'Ein Fehler ist aufgetreten. Bitte versuche es später erneut.' }),
     );
-    logger.error(`Error in WolframAlphaSearch: ${err}`);
+    logger.error(`Fehler bei der WolframAlpha-Suche: ${err}`);
   }
 
   return emitter;
 };
 
 const handleWolframAlphaSearch = (
-  message: string,
-  history: BaseMessage[],
-  llm: BaseChatModel,
-  embeddings: Embeddings,
+    message: string,
+    history: BaseMessage[],
+    llm: BaseChatModel,
+    embeddings: Embeddings,
 ) => {
   const emitter = basicWolframAlphaSearch(message, history, llm);
   return emitter;

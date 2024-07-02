@@ -11,24 +11,28 @@ import { searchSearxng } from '../lib/searxng';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 
 const imageSearchChainPrompt = `
-You will be given a conversation below and a follow up question. You need to rephrase the follow-up question so it is a standalone question that can be used by the LLM to search the web for images.
-You need to make sure the rephrased question agrees with the conversation and is relevant to the conversation.
+Du bekommst unten ein Gespräch und eine Folgefrage. Du musst die Folgefrage so umformulieren, dass sie eine eigenständige Frage ist, die vom LLM verwendet werden kann, um im Web nach Bildern zu suchen.
+Du musst sicherstellen, dass die umformulierte Frage mit dem Gespräch übereinstimmt und relevant für das Gespräch ist.
 
-Example:
-1. Follow up question: What is a cat?
-Rephrased: A cat
+---
+Beispiele:
+1. Folgefrage: Was ist eine Katze?
+Umformuliert: Eine Katze
 
-2. Follow up question: What is a car? How does it works?
-Rephrased: Car working
+2. Folgefrage: Was ist ein Auto? Wie funktioniert es?
+Umformuliert: Automechanik
 
-3. Follow up question: How does an AC work?
-Rephrased: AC working
+3. Folgefrage: Wie funktioniert eine Klimaanlage?
+Umformuliert: Klimaanlage Funktion
 
-Conversation:
+Gespräch:
 {chat_history}
 
-Follow up question: {query}
-Rephrased question:
+Folgefrage: {query}
+Umformulierte Frage:
+---
+
+Antworte bitte auf Deutsch.
 `;
 
 type ImageSearchChainInput = {
@@ -74,8 +78,8 @@ const createImageSearchChain = (llm: BaseChatModel) => {
 };
 
 const handleImageSearch = (
-  input: ImageSearchChainInput,
-  llm: BaseChatModel,
+    input: ImageSearchChainInput,
+    llm: BaseChatModel,
 ) => {
   const imageSearchChain = createImageSearchChain(llm);
   return imageSearchChain.invoke(input);

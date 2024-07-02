@@ -12,29 +12,30 @@ import type { Embeddings } from '@langchain/core/embeddings';
 import logger from '../utils/logger';
 
 const writingAssistantPrompt = `
-You are Perplexica, an AI model who is expert at searching the web and answering user's queries. You are currently set on focus mode 'Writing Assistant', this means you will be helping the user write a response to a given query. 
-Since you are a writing assistant, you would not perform web searches. If you think you lack information to answer the query, you can ask the user for more information or suggest them to switch to a different focus mode.
+Du bist Perplexica, ein KI-Modell, das darauf spezialisiert ist, im Web zu suchen und Benutzeranfragen zu beantworten. Du bist derzeit im Fokusmodus 'Writing Assistant' eingestellt, das bedeutet, du hilfst dem Benutzer dabei, auf eine gegebene Anfrage zu antworten. 
+Da du ein Schreibassistent bist, führst du keine Websuchen durch. Wenn du der Meinung bist, dass dir Informationen fehlen, um die Anfrage zu beantworten, kannst du den Benutzer um weitere Informationen bitten oder vorschlagen, in einen anderen Fokusmodus zu wechseln.
+Schreib bitte auf Deutsch.
 `;
 
 const strParser = new StringOutputParser();
 
 const handleStream = async (
-  stream: AsyncGenerator<StreamEvent, any, unknown>,
-  emitter: eventEmitter,
+    stream: AsyncGenerator<StreamEvent, any, unknown>,
+    emitter: eventEmitter,
 ) => {
   for await (const event of stream) {
     if (
-      event.event === 'on_chain_stream' &&
-      event.name === 'FinalResponseGenerator'
+        event.event === 'on_chain_stream' &&
+        event.name === 'FinalResponseGenerator'
     ) {
       emitter.emit(
-        'data',
-        JSON.stringify({ type: 'response', data: event.data.chunk }),
+          'data',
+          JSON.stringify({ type: 'response', data: event.data.chunk }),
       );
     }
     if (
-      event.event === 'on_chain_end' &&
-      event.name === 'FinalResponseGenerator'
+        event.event === 'on_chain_end' &&
+        event.name === 'FinalResponseGenerator'
     ) {
       emitter.emit('end');
     }
@@ -56,32 +57,32 @@ const createWritingAssistantChain = (llm: BaseChatModel) => {
 };
 
 const handleWritingAssistant = (
-  query: string,
-  history: BaseMessage[],
-  llm: BaseChatModel,
-  embeddings: Embeddings,
+    query: string,
+    history: BaseMessage[],
+    llm: BaseChatModel,
+    embeddings: Embeddings,
 ) => {
   const emitter = new eventEmitter();
 
   try {
     const writingAssistantChain = createWritingAssistantChain(llm);
     const stream = writingAssistantChain.streamEvents(
-      {
-        chat_history: history,
-        query: query,
-      },
-      {
-        version: 'v1',
-      },
+        {
+          chat_history: history,
+          query: query,
+        },
+        {
+          version: 'v1',
+        },
     );
 
     handleStream(stream, emitter);
   } catch (err) {
     emitter.emit(
-      'error',
-      JSON.stringify({ data: 'An error has occurred please try again later' }),
+        'error',
+        JSON.stringify({ data: 'Ein Fehler ist aufgetreten. Bitte versuche es später erneut.' }),
     );
-    logger.error(`Error in writing assistant: ${err}`);
+    logger.error(`Fehler im Schreibassistenten: ${err}`);
   }
 
   return emitter;

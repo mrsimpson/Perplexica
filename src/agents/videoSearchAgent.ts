@@ -11,24 +11,27 @@ import { searchSearxng } from '../lib/searxng';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 
 const VideoSearchChainPrompt = `
-  You will be given a conversation below and a follow up question. You need to rephrase the follow-up question so it is a standalone question that can be used by the LLM to search Youtube for videos.
-  You need to make sure the rephrased question agrees with the conversation and is relevant to the conversation.
+  Du bekommst unten ein Gespräch und eine Folgefrage. Du musst die Folgefrage so umformulieren, dass sie eine eigenständige Frage wird, die vom LLM verwendet werden kann, um auf YouTube nach Videos zu suchen.
+  Du musst sicherstellen, dass die umformulierte Frage mit dem Gespräch übereinstimmt und zum Gespräch relevant ist.
   
-  Example:
-  1. Follow up question: How does a car work?
-  Rephrased: How does a car work?
+  Beispiel:
+  1. Folgefrage: Wie funktioniert ein Auto?
+  Umformulierte Frage: Wie funktioniert ein Auto?
   
-  2. Follow up question: What is the theory of relativity?
-  Rephrased: What is theory of relativity
+  2. Folgefrage: Was ist die Relativitätstheorie?
+  Umformulierte Frage: Was ist die Relativitätstheorie
   
-  3. Follow up question: How does an AC work?
-  Rephrased: How does an AC work
+  3. Folgefrage: Wie funktioniert eine Klimaanlage?
+  Umformulierte Frage: Wie funktioniert eine Klimaanlage
   
-  Conversation:
+  Gespräch:
   {chat_history}
   
-  Follow up question: {query}
-  Rephrased question:
+  Folgefrage: {query}
+  Umformulierte Frage:
+  ---
+  
+  Antworte bitte auf Deutsch.
   `;
 
 type VideoSearchChainInput = {
@@ -60,10 +63,10 @@ const createVideoSearchChain = (llm: BaseChatModel) => {
 
       res.results.forEach((result) => {
         if (
-          result.thumbnail &&
-          result.url &&
-          result.title &&
-          result.iframe_src
+            result.thumbnail &&
+            result.url &&
+            result.title &&
+            result.iframe_src
         ) {
           videos.push({
             img_src: result.thumbnail,
@@ -80,8 +83,8 @@ const createVideoSearchChain = (llm: BaseChatModel) => {
 };
 
 const handleVideoSearch = (
-  input: VideoSearchChainInput,
-  llm: BaseChatModel,
+    input: VideoSearchChainInput,
+    llm: BaseChatModel,
 ) => {
   const VideoSearchChain = createVideoSearchChain(llm);
   return VideoSearchChain.invoke(input);

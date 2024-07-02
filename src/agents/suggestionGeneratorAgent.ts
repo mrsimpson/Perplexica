@@ -7,16 +7,18 @@ import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { ChatOpenAI } from '@langchain/openai';
 
 const suggestionGeneratorPrompt = `
-You are an AI suggestion generator for an AI powered search engine. You will be given a conversation below. You need to generate 4-5 suggestions based on the conversation. The suggestion should be relevant to the conversation that can be used by the user to ask the chat model for more information.
-You need to make sure the suggestions are relevant to the conversation and are helpful to the user. Keep a note that the user might use these suggestions to ask a chat model for more information. 
-Make sure the suggestions are medium in length and are informative and relevant to the conversation.
+Du bist ein KI-Vorschlagsgenerator für eine KI-gestützte Suchmaschine. Dir wird unten ein Gespräch gegeben. Du musst basierend auf dem Gespräch 4-5 Vorschläge generieren. Die Vorschläge sollten relevant für das Gespräch sein und vom Benutzer verwendet werden können, um das Chat-Modell nach weiteren Informationen zu fragen.
+Stelle sicher, dass die Vorschläge relevant für das Gespräch und für den Benutzer hilfreich sind. Beachte, dass der Benutzer diese Vorschläge verwenden könnte, um das Chat-Modell nach weiteren Informationen zu fragen.
+Stelle sicher, dass die Vorschläge mittel in der Länge, informativ und relevant für das Gespräch sind.
 
-Provide these suggestions separated by newlines between the XML tags <suggestions> and </suggestions>. For example:
+Antworte bitte auf Deutsch.
+
+Gib diese Vorschläge getrennt durch Zeilenumbrüche zwischen den XML-Tags <suggestions> und </suggestions> an. Zum Beispiel:
 
 <suggestions>
-Tell me more about SpaceX and their recent projects
-What is the latest news on SpaceX?
-Who is the CEO of SpaceX?
+Erzähl mir mehr über SpaceX und ihre aktuellen Projekte
+Was sind die neuesten Nachrichten über SpaceX?
+Wer ist der CEO von SpaceX?
 </suggestions>
 
 Conversation:
@@ -35,7 +37,7 @@ const createSuggestionGeneratorChain = (llm: BaseChatModel) => {
   return RunnableSequence.from([
     RunnableMap.from({
       chat_history: (input: SuggestionGeneratorInput) =>
-        formatChatHistoryAsString(input.chat_history),
+          formatChatHistoryAsString(input.chat_history),
     }),
     PromptTemplate.fromTemplate(suggestionGeneratorPrompt),
     llm,
@@ -44,8 +46,8 @@ const createSuggestionGeneratorChain = (llm: BaseChatModel) => {
 };
 
 const generateSuggestions = (
-  input: SuggestionGeneratorInput,
-  llm: BaseChatModel,
+    input: SuggestionGeneratorInput,
+    llm: BaseChatModel,
 ) => {
   (llm as ChatOpenAI).temperature = 0;
   const suggestionGeneratorChain = createSuggestionGeneratorChain(llm);
